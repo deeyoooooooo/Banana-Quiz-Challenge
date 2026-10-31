@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# SQLite databases and session files (may contain user data)
+data/
+*.sqlite
+*.sqlite-journal
+*.db
+*.db-journal
+
+# Build output
+frontend/dist/
+backend/coverage/
+
+# Logs and OS files
+logs/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
