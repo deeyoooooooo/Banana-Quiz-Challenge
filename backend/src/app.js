@@ -7,7 +7,7 @@ const { createAuthRouter } = require("./routes/authRoutes");
 const { createQuizRouter } = require("./routes/quizRoutes");
 const { createBananaService } = require("./services/bananaService");
 
-function createApp({ config, db, bananaService }) {
+function createApp({ config, db, bananaService, now }) {
   const app = express();
   const banana = bananaService || createBananaService({
     url: config.bananaApiUrl,
@@ -56,6 +56,7 @@ function createApp({ config, db, bananaService }) {
       db,
       bananaService: banana,
       questionsPerQuiz: config.questionsPerQuiz,
+      now,
     })
   );
 
