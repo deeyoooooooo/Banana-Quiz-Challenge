@@ -3,14 +3,14 @@ const { loadConfig } = require("../src/config");
 const { initDb } = require("../src/db");
 const { createApp } = require("../src/app");
 
-function createTestApp(bananaService) {
+function createTestApp(bananaService, options = {}) {
   const config = loadConfig({
     NODE_ENV: "test",
     SESSION_SECRET: "test-session-secret-value",
     FRONTEND_ORIGIN: "http://localhost:5173",
     BANANA_API_URL: "http://marcconrad.com/uob/banana/api.php?out=json",
   });
-  config.questionsPerQuiz = 2;
+  config.questionsPerQuiz = options.questionsPerQuiz || 2;
   const db = initDb(":memory:");
   const app = createApp({
     config,
@@ -21,6 +21,7 @@ function createTestApp(bananaService) {
         solution: 4,
       }),
     },
+    now: options.now,
   });
   return { app, db };
 }
