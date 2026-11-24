@@ -67,10 +67,14 @@ export const api = {
   me() {
     return request("/api/auth/me");
   },
-  startQuiz(csrfToken) {
+  listDifficulties() {
+    return request("/api/quiz/difficulties");
+  },
+  startQuiz(csrfToken, difficulty) {
     return request("/api/quiz/start", {
       method: "POST",
       headers: { "x-csrf-token": csrfToken },
+      body: JSON.stringify({ difficulty }),
     });
   },
   currentQuiz() {
@@ -87,6 +91,24 @@ export const api = {
       method: "POST",
       headers: { "x-csrf-token": csrfToken },
       body: JSON.stringify({ answer }),
+    });
+  },
+  timeoutQuestion(csrfToken) {
+    return request("/api/quiz/timeout", {
+      method: "POST",
+      headers: { "x-csrf-token": csrfToken },
+    });
+  },
+  requestHint(csrfToken) {
+    return request("/api/quiz/hint", {
+      method: "POST",
+      headers: { "x-csrf-token": csrfToken },
+    });
+  },
+  abandonQuiz(csrfToken) {
+    return request("/api/quiz/abandon", {
+      method: "POST",
+      headers: { "x-csrf-token": csrfToken },
     });
   },
   listResults() {

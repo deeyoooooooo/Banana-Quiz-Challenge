@@ -3,16 +3,16 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import Message from "../components/Message.jsx";
+import { difficultyMeta } from "../game/difficulties.js";
 
-function feedbackFor(score, total) {
-  const ratio = total ? score / total : 0;
-  if (ratio === 1) {
-    return "Excellent. You answered every puzzle correctly.";
+function headlineFor(accuracy) {
+  if (accuracy === 100) {
+    return "Perfect run. You solved every puzzle.";
   }
-  if (ratio >= 0.6) {
-    return "Good result. Review a few more puzzles to improve.";
+  if (accuracy >= 60) {
+    return "Solid finish. A few more solves and you will own this mode.";
   }
-  return "Keep practising. Each quiz loads a new Banana API puzzle.";
+  return "Run complete. Practise this difficulty and try again.";
 }
 
 export default function Results() {
@@ -60,7 +60,7 @@ export default function Results() {
     setStarting(true);
     setError("");
     try {
-      await api.startQuiz(csrfToken);
+      await api.startQuiz(csrfToken, result?.difficulty || "easy");
       navigate("/quiz");
     } catch (err) {
       setError(err.message);
@@ -70,20 +70,36 @@ export default function Results() {
   }
 
   const score = result?.score ?? 0;
+  const maxScore = result?.maxScore || result?.totalQuestions || 5;
   const total = result?.totalQuestions || result?.answered || 5;
+  const correct = result?.correctCount ?? score;
+  const incorrect = result?.incorrectCount ?? 0;
+  const unanswered = result?.unansweredCount ?? Math.max(total - correct - incorrect, 0);
+  const accuracy = result?.accuracy ?? (total ? Math.round((correct / total) * 100) : 0);
+  const mode = difficultyMeta(result?.difficulty);
+  const percent = maxScore ? Math.round((score / maxScore) * 100) : 0;
 
   return (
-    <section className="card">
-      <h1>Quiz results</h1>
+    <section className="card results-card">
+      <p className="eyebrow">{mode.name} complete</p>
+      <h1>{loading ? "Quiz results" : headlineFor(accuracy)}</h1>
       {loading ? <p className="status">Loading results...</p> : null}
       <Message type="error">{error}</Message>
       {!loading && result ? (
         <>
           <p className="score-line">
-            You scored <strong>{score}</strong> out of <strong>{total}</strong>.
+            Final score <strong>{score}</strong> / <strong>{maxScore}</strong>
           </p>
-          <p>Questions answered: {result.answered || total}</p>
-          <p>{feedbackFor(score, total)}</p>
+          <div className="score-bar" aria-hidden="true">
+            <span style={{ width: `${percent}%` }} />
+          </div>
+          <ul className="result-facts">
+            <li>Difficulty: {mode.name}</li>
+            <li>Correct: {correct}</li>
+            <li>Incorrect: {incorrect}</li>
+            <li>Unanswered: {unanswered}</li>
+            <li>Accuracy: {accuracy}%</li>
+          </ul>
         </>
       ) : null}
       <div className="actions">
@@ -95,7 +111,7 @@ export default function Results() {
           className="button-secondary"
           onClick={() => navigate("/dashboard")}
         >
-          Back to dashboard
+          Return to Dashboard
         </button>
       </div>
     </section>
