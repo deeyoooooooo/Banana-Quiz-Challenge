@@ -7,7 +7,7 @@ const { createAuthRouter } = require("./routes/authRoutes");
 const { createQuizRouter } = require("./routes/quizRoutes");
 const { createBananaService } = require("./services/bananaService");
 
-function createApp({ config, db, bananaService, now }) {
+function createApp({ config, db, bananaService, now, deliverReset }) {
   const app = express();
   const banana = bananaService || createBananaService({
     url: config.bananaApiUrl,
@@ -49,7 +49,16 @@ function createApp({ config, db, bananaService, now }) {
     res.json({ status: "ok" });
   });
 
-  app.use("/api/auth", createAuthRouter(db));
+  app.use(
+    "/api/auth",
+    createAuthRouter(db, {
+      now,
+      nodeEnv: config.nodeEnv,
+      frontendOrigin: config.frontendOrigin,
+      resetTokenTtlMs: config.resetTokenTtlMs,
+      deliverReset,
+    })
+  );
   app.use(
     "/api/quiz",
     createQuizRouter({
