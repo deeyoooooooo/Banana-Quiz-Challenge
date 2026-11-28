@@ -1,5 +1,10 @@
 const path = require("path");
 
+function positiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT || 3001),
@@ -13,7 +18,8 @@ function loadConfig(env = process.env) {
       ? path.resolve(process.cwd(), env.DATABASE_PATH)
       : path.resolve(__dirname, "../../data/app.sqlite"),
     questionsPerQuiz: 5,
-    bananaTimeoutMs: 10000,
+    bananaTimeoutMs: positiveNumber(env.BANANA_TIMEOUT_MS, 10000),
+    resetTokenTtlMs: positiveNumber(env.RESET_TOKEN_MINUTES, 15) * 60 * 1000,
   };
 }
 

@@ -174,8 +174,9 @@ test("returns a Banana API failure without exposing internals", async () => {
     .send({ difficulty: "easy" });
 
   assert.equal(response.status, 503);
-  assert.match(response.body.error, /Banana API/i);
+  assert.match(response.body.error, /temporarily unavailable/i);
   assert.equal(response.body.stack, undefined);
+  assert.doesNotMatch(JSON.stringify(response.body), /Banana API network/);
 });
 
 test("rejects late medium-mode answers using the server deadline", async () => {
@@ -195,6 +196,7 @@ test("rejects late medium-mode answers using the server deadline", async () => {
   assert.equal(started.status, 200);
   assert.equal(started.body.puzzle.timeLimit, 30);
   assert.equal(started.body.puzzle.remainingMs, 30000);
+  assert.equal(started.body.puzzle.serverDeadline, currentTime + 30000);
 
   const earlyTimeout = await agent
     .post("/api/quiz/timeout")
@@ -340,6 +342,54 @@ test("a five-question quiz finishes after five answers", async () => {
   assert.equal(last.body.answered, 5);
   assert.equal(last.body.maxScore, 50);
   assert.equal(last.body.score, 50);
+});
+
+test("scores an incorrect answer before the deadline and a correct answer after it as zero", async () => {
+  let currentTime = 2_000_000;
+  const bananaService = {
+    fetchPuzzle: async () => ({
+      question: "https://example.com/puzzle.png",
+      solution: 7,
+    }),
+  };
+  const { app } = createTestApp(bananaService, {
+    now: () => currentTime,
+    questionsPerQuiz: 2,
+  });
+  const { agent, csrfToken } = await csrfAgent(app);
+  await register(agent, csrfToken, {
+    username: "Deadline User",
+    email: "deadline@example.com",
+    password: "Secure123",
+  });
+
+  await agent
+    .post("/api/quiz/start")
+    .set("x-csrf-token", csrfToken)
+    .send({ difficulty: "medium" });
+
+  const incorrect = await agent
+    .post("/api/quiz/answer")
+    .set("x-csrf-token", csrfToken)
+    .send({ answer: 1 });
+  assert.equal(incorrect.status, 200);
+  assert.equal(incorrect.body.correct, false);
+  assert.equal(incorrect.body.timedOut, false);
+  assert.equal(incorrect.body.score, 0);
+  assert.equal(incorrect.body.incorrectCount, 1);
+  assert.equal(incorrect.body.puzzle.serverDeadline, currentTime + 30000);
+
+  currentTime += 30001;
+  const lateCorrect = await agent
+    .post("/api/quiz/answer")
+    .set("x-csrf-token", csrfToken)
+    .send({ answer: 7, serverDeadline: currentTime + 60000 });
+  assert.equal(lateCorrect.status, 200);
+  assert.equal(lateCorrect.body.timedOut, true);
+  assert.equal(lateCorrect.body.correct, false);
+  assert.equal(lateCorrect.body.score, 0);
+  assert.equal(lateCorrect.body.completed, true);
+  assert.equal(lateCorrect.body.unansweredCount, 1);
 });
 
 test("lists public difficulty rules without exposing solutions", async () => {

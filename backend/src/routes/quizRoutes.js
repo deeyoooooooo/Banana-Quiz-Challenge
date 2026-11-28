@@ -26,6 +26,7 @@ function publicPuzzle(quiz, now) {
     difficulty: quiz.difficulty,
     timeLimit: quiz.timeLimit,
     remainingMs: remainingMs(quiz, now),
+    serverDeadline: quiz.current.deadlineAt,
     hintsEnabled: quiz.hintsEnabled,
     hintAvailable: Boolean(quiz.hintsEnabled && quiz.current && !quiz.current.hintUsed),
     maxScore: quiz.maxScore,

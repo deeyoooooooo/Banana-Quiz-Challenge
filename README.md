@@ -1,4 +1,5 @@
 ﻿# Banana Quiz Challenge (Banana Arcade)
+
 **CIS046-3 Software for Enterprise**  
 Individual University Project
 
@@ -58,9 +59,9 @@ flowchart LR
 
 - **React Frontend:** Displays application pages, captures user interactions, and manages loading, success, and error states. It does not determine the official quiz score.
 - **Express Backend:** Validates requests, manages sessions, communicates with SQLite, and handles requests to the Banana Game API.
-- **Authentication and Session Service:** Handles registration, password hashing, login, session creation, and logout.
+- **Authentication and Session Service:** Handles registration, password hashing, login, session creation, logout, and password reset.
 - **Quiz Business Logic:** Manages quiz sessions, checks submitted answers, enforces timers, calculates scores, and saves results against the authenticated user.
-- **Banana API Integration:** The `backend/src/services/bananaService.js` module communicates with the external API and processes puzzle responses.
+- **Banana API Integration:** `backend/src/services/bananaService.js` is the only module that talks to the external API. It validates the JSON, maps it to an internal puzzle, times out slow requests, and retries once after a temporary failure.
 - **SQLite Database:** Stores user accounts, session information, and quiz results.
 
 ## 4. Project Structure
@@ -69,36 +70,37 @@ The main project structure is organised as follows:
 
 ```text
 Banana-Quiz-Challenge/
-â”‚
-â”œâ”€â”€ README.md
-â”œâ”€â”€ .env.example
-â”œâ”€â”€ .gitignore
-â”‚
-â”œâ”€â”€ docs/
-â”‚   â””â”€â”€ CIS046-3_Faculty_Self_Assessment.md
-â”‚
-â”œâ”€â”€ backend/
-â”‚   â”œâ”€â”€ src/
-â”‚   â”‚   â”œâ”€â”€ index.js
-â”‚   â”‚   â”œâ”€â”€ app.js
-â”‚   â”‚   â”œâ”€â”€ config.js
-â”‚   â”‚   â”œâ”€â”€ db.js
-â”‚   â”‚   â”œâ”€â”€ middleware/
-â”‚   â”‚   â”œâ”€â”€ routes/
-â”‚   â”‚   â”œâ”€â”€ services/
-â”‚   â”‚   â”‚   â””â”€â”€ difficulty.js
-â”‚   â”‚   â””â”€â”€ store/
-â”‚   â”‚
-â”‚   â””â”€â”€ tests/
-â”‚
-â””â”€â”€ frontend/
-    â”œâ”€â”€ index.html
-    â””â”€â”€ src/
-        â”œâ”€â”€ api/
-        â”œâ”€â”€ components/
-        â”œâ”€â”€ context/
-        â”œâ”€â”€ game/
-        â””â”€â”€ pages/
+│
+├── README.md
+├── .env.example
+├── .gitignore
+│
+├── docs/
+│   ├── CIS046-3_Faculty_Self_Assessment.md
+│   └── technical-decisions.md
+│
+├── backend/
+│   ├── src/
+│   │   ├── index.js
+│   │   ├── app.js
+│   │   ├── config.js
+│   │   ├── db.js
+│   │   ├── middleware/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   │   └── difficulty.js
+│   │   └── store/
+│   │
+│   └── tests/
+│
+└── frontend/
+    ├── index.html
+    └── src/
+        ├── api/
+        ├── components/
+        ├── context/
+        ├── game/
+        └── pages/
 ```
 
 ## 5. Installation and Setup
@@ -120,7 +122,7 @@ cd Banana-Quiz-Challenge
 
 ### Configure Environment Variables
 
-Create a local environment file using the provided example:
+Create a local environment file using the provided example.
 
 **Windows PowerShell:**
 
@@ -165,7 +167,9 @@ The application uses the following environment variables:
 | `SESSION_SECRET` | Secret used to sign session cookies |
 | `FRONTEND_ORIGIN` | Allowed frontend origin for CORS |
 | `BANANA_API_URL` | Banana Game API endpoint |
+| `BANANA_TIMEOUT_MS` | How long to wait for the Banana API before timing out (default: 10000) |
 | `DATABASE_PATH` | SQLite database file location |
+| `RESET_TOKEN_MINUTES` | How long a password-reset token stays valid (default: 15) |
 
 There is no Banana API key configured because the official API documentation does not specify one.
 
@@ -178,6 +182,7 @@ When the backend starts for the first time, `backend/src/db.js` creates the data
 - `users`
 - `quiz_results`
 - `sessions`
+- `password_resets`
 
 Existing databases are updated when necessary. Database migrations add missing result columns without deleting existing users or scores.
 
@@ -208,6 +213,7 @@ The Vite development server proxies `/api` requests to the Express backend at `h
 ## 6. Banana Game API Integration
 
 The application integrates with the external Banana Game API.
+
 **Official documentation:**  
 https://marcconrad.com/uob/banana/doc.php
 
@@ -227,7 +233,11 @@ http://marcconrad.com/uob/banana/api.php?out=json
 
 The API returns one banana puzzle rather than a multiple-choice question paper. Users view the puzzle image and submit a digit between 0 and 9.
 
-The backend keeps the puzzle solution in the server-side session and does not send it to the React frontend. Easy mode can provide an even-or-odd hint without revealing the answer.
+The backend adapter in `bananaService.js` is the only place that knows the external JSON field names. It checks that `question` is present and that `solution` is a digit from 0 to 9, then returns an internal puzzle object. The solution stays in the server-side session. API responses sent to React contain the image URL, the server deadline, and the score so far. They do not contain the solution. Easy mode can provide an even-or-odd hint without revealing the answer.
+
+Each request uses a 10 second timeout (`BANANA_TIMEOUT_MS`). If the call fails because of a network error, a timeout, or a temporary HTTP status (408, 429, 500, 502, 503, or 504), the adapter tries exactly once more. A malformed body or a permanent HTTP error such as 404 is not retried. If both attempts fail, the user sees: "The quiz service is temporarily unavailable. Please try again later." The server logs the technical code. It does not send a stack trace, and it does not substitute a hardcoded puzzle.
+
+The official Banana API endpoint is HTTP, not HTTPS. That limitation belongs to the external service.
 
 Tests use a mock adapter to simulate API responses. Mock data is not presented as a live API result.
 
@@ -245,9 +255,20 @@ The authentication process works as follows:
 6. Successful authentication creates a server-side session stored in SQLite.
 7. The session cookie uses `HttpOnly` and `SameSite=Lax` settings. The `Secure` option is enabled in production.
 8. Protected frontend routes check `/api/auth/me`, while protected backend routes use authentication middleware.
-9. Logging out destroys the user's session.
+9. Logging out calls `req.session.destroy`, which deletes the SQLite session row. The old cookie no longer matches a logged-in user.
+10. A forgotten password creates a random token. Only its SHA-256 hash is stored, with an expiry time. In development the reset link is printed in the backend console. It is not returned by the API. Using the link stores a new bcrypt password hash and marks the token used. Expired and used tokens are rejected. The response does not say whether the email address is registered.
+
+Server-side sessions and `HttpOnly` cookies were chosen so JavaScript in the browser cannot read the session identifier. Storing a JWT in `localStorage` would expose it to any script running on the page. OAuth is not implemented; registration and login are handled by this application.
 
 Frontend login flags are not treated as proof of authentication. Database queries also include the authenticated user's ID to prevent users from accessing another user's quiz history.
+
+### Password reset demonstration
+
+1. Register and log out.
+2. Open **Forgot password?** on the login page and submit the registered email.
+3. Copy the reset link from the backend terminal. It is only printed when `NODE_ENV=development`.
+4. Open that link, choose a new password, and log in with it.
+5. Confirm the old password no longer works and the same link cannot be used again.
 
 ## 8. Difficulty Levels and Scoring
 
@@ -265,9 +286,9 @@ The `POST /api/quiz/start` endpoint requires a valid difficulty level. Missing d
 
 The backend does not trust client-submitted scores, remaining time, or user IDs.
 
-For timed difficulties, each active puzzle stores its start time and deadline in the server session. The backend checks the deadline when an answer or timeout request is received.
+For timed difficulties, each active puzzle stores its start time and deadline in the server session. The quiz response includes `serverDeadline`, which is that server timestamp. The browser countdown uses it only as a display. The backend ignores any deadline or score sent by the browser and compares `Date.now()` on the server with the stored deadline.
 
-Answers submitted after the deadline receive zero points and are counted as unanswered, even if the submitted digit is correct.
+Answers submitted after the deadline receive zero points and are counted as unanswered, even if the submitted digit is correct. A correct digit sent after expiry therefore does not increase the score.
 
 ## 9. Event-Driven Programming
 
@@ -282,7 +303,9 @@ The following examples are implemented in the project:
 | Start Playing / Difficulty selection | `handleStartQuiz` in `Dashboard.jsx` | Starts a quiz using the selected difficulty. |
 | Digit selection | `handleSelect` in `Quiz.jsx` | Stores and highlights the selected answer. |
 | Submit Answer | `handleSubmit` in `Quiz.jsx` | Submits the answer and displays the result or next puzzle. |
-| Countdown reaches zero | `handleTimeout` in `Quiz.jsx` | Sends a timeout request to the backend. |
+| Countdown reaches zero | `handleTimeout` in `Quiz.jsx` | Sends a timeout request. The server accepts it only after its own deadline. |
+| Forgot password | `handleSubmit` in `ForgotPassword.jsx` | Asks the server to prepare a reset link. |
+| New password | `handleSubmit` in `ResetPassword.jsx` | Submits the token and replacement password. |
 | Hint selection | `handleHint` in `Quiz.jsx` | Requests an Easy-mode hint. |
 | Quit confirmation | `handleQuit` in `Quiz.jsx` | Abandons the active quiz without saving a completed result. |
 | Play Again | `handlePlayAgain` in `Results.jsx` | Starts another quiz using the previous difficulty. |
@@ -295,9 +318,10 @@ These examples demonstrate how user events trigger frontend logic, backend reque
 
 The project is maintained using Git and GitHub.
 
-Repository:  
+**Repository:**  
 https://github.com/deeyoooooooo/Banana-Quiz-Challenge
-Git is used to track source-code changes, organise development work, and maintain the project history.
+
+Git is used to track source-code changes, organise development work through feature branches, and maintain a clear project history.
 
 The repository workflow includes:
 
@@ -324,8 +348,11 @@ The tests cover areas including:
 
 - User authentication and session handling.
 - Banana API response handling.
+- CSRF rejection.
+- Password hashing, reset tokens, expiry, reuse, and session invalidation.
+- Banana API success, timeout, one retry, permanent HTTP errors, and malformed data.
 - Database migration.
-- Difficulty validation, timing, and scoring.
+- Difficulty validation, timing, scoring, and late answers.
 - User-specific quiz result access.
 - Repeated answer submissions.
 - Five-question quiz behaviour.
@@ -355,12 +382,16 @@ The project has some limitations:
 - The documented Banana API uses HTTP rather than HTTPS.
 - The API provides the puzzle solution along with the puzzle. Although the application keeps the solution away from the browser, someone accessing the third-party API directly can still obtain it.
 - Session data is stored locally in SQLite rather than in a shared session store for multiple servers.
-- Email verification and password-reset functionality are not implemented.
+- Password reset is development-only: the link is written to the server console. There is no email provider, and this delivery method must not be used in production.
+- OAuth is not implemented.
+- The application is not production-ready. It is a single-server assessment build.
 - Role-based administrator access has been omitted to keep the project scope manageable.
+
+The reasons for these choices are summarised in `docs/technical-decisions.md`.
 
 ## 14. Acknowledgements
 
-- **Banana Game API:** Marc Conrad â€” https://marcconrad.com/uob/banana/doc.php
+- **Banana Game API:** Marc Conrad — https://marcconrad.com/uob/banana/doc.php
 - **Banana Game resources:** https://marcconrad.com/uob/banana/
 - **Related repository:** https://github.com/marcconrad/comparativeintegratedsystems
 - **Software packages:** Express, `express-session`, `bcryptjs`, `better-sqlite3`, CORS, dotenv, express-rate-limit, React, Vite, React Router, and Supertest.

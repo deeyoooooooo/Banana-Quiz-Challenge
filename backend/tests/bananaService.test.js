@@ -49,15 +49,79 @@ test("fails when the Banana API returns malformed data", async () => {
 });
 
 test("fails when the Banana API returns a non-success HTTP status", async () => {
+  let calls = 0;
   const service = createBananaService({
-    fetchFn: async () => ({
-      ok: false,
-      status: 500,
-    }),
+    fetchFn: async () => {
+      calls += 1;
+      return { ok: false, status: 404 };
+    },
   });
 
   await assert.rejects(() => service.fetchPuzzle(), (error) => {
     assert.equal(error.code, "BANANA_HTTP");
+    assert.equal(error.status, 404);
     return true;
   });
+  assert.equal(calls, 1);
+});
+
+test("retries once after a timeout and then returns the puzzle", async () => {
+  let calls = 0;
+  const service = createBananaService({
+    logger: { error() {} },
+    fetchFn: async () => {
+      calls += 1;
+      if (calls === 1) {
+        const error = new Error("The operation was aborted due to timeout");
+        error.name = "TimeoutError";
+        throw error;
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          question: "http://marcconrad.com/uob/banana/example.png",
+          solution: 8,
+        }),
+      };
+    },
+  });
+
+  const puzzle = await service.fetchPuzzle();
+  assert.equal(calls, 2);
+  assert.equal(puzzle.question, "http://marcconrad.com/uob/banana/example.png");
+  assert.equal(puzzle.solution, 8);
+});
+
+test("retries a temporary HTTP failure only once", async () => {
+  let calls = 0;
+  const service = createBananaService({
+    logger: { error() {} },
+    fetchFn: async () => {
+      calls += 1;
+      return { ok: false, status: 503 };
+    },
+  });
+
+  await assert.rejects(() => service.fetchPuzzle(), (error) => {
+    assert.equal(error.code, "BANANA_HTTP");
+    assert.equal(error.status, 503);
+    return true;
+  });
+  assert.equal(calls, 2);
+});
+
+test("does not retry a malformed Banana API response", async () => {
+  let calls = 0;
+  const service = createBananaService({
+    fetchFn: async () => {
+      calls += 1;
+      return { ok: true, json: async () => ({ question: "", solution: 3 }) };
+    },
+  });
+
+  await assert.rejects(() => service.fetchPuzzle(), (error) => {
+    assert.equal(error.code, "BANANA_MALFORMED");
+    return true;
+  });
+  assert.equal(calls, 1);
 });

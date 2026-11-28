@@ -27,12 +27,22 @@ export default function Quiz() {
   const submittingRef = useRef(false);
   const timeoutSentRef = useRef(false);
 
+  function syncRemaining(nextPuzzle) {
+    if (!nextPuzzle || nextPuzzle.timeLimit == null) {
+      return null;
+    }
+    if (typeof nextPuzzle.serverDeadline === "number") {
+      return Math.max(0, nextPuzzle.serverDeadline - Date.now());
+    }
+    return nextPuzzle.remainingMs ?? null;
+  }
+
   function applyPuzzle(nextPuzzle) {
     timeoutSentRef.current = false;
     setPuzzle(nextPuzzle);
     setSelected(null);
     setHint("");
-    setRemainingMs(nextPuzzle?.remainingMs ?? null);
+    setRemainingMs(syncRemaining(nextPuzzle));
   }
 
   async function finishIfComplete(data) {
@@ -81,11 +91,14 @@ export default function Quiz() {
   }, []);
 
   useEffect(() => {
-    if (!puzzle || puzzle.timeLimit == null || remainingMs == null) {
+    if (!puzzle || puzzle.timeLimit == null) {
       return undefined;
     }
     const timer = window.setInterval(() => {
       setRemainingMs((current) => {
+        if (typeof puzzle.serverDeadline === "number") {
+          return Math.max(0, puzzle.serverDeadline - Date.now());
+        }
         if (current == null || current <= 0) {
           return current;
         }
@@ -93,7 +106,7 @@ export default function Quiz() {
       });
     }, 250);
     return () => window.clearInterval(timer);
-  }, [puzzle?.questionNumber, puzzle?.timeLimit]);
+  }, [puzzle?.questionNumber, puzzle?.timeLimit, puzzle?.serverDeadline]);
 
   useEffect(() => {
     if (

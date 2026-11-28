@@ -58,6 +58,34 @@ function validateLogin({ email, password }) {
   };
 }
 
+function validateEmailOnly({ email }) {
+  const cleanEmail = normalizeEmail(email);
+  if (!cleanEmail || !EMAIL_PATTERN.test(cleanEmail)) {
+    return { errors: ["Enter a valid email address."], value: { email: cleanEmail } };
+  }
+  return { errors: [], value: { email: cleanEmail } };
+}
+
+function validatePasswordReset({ token, password }) {
+  const errors = [];
+  const cleanToken = String(token || "").trim();
+  const cleanPassword = String(password || "");
+
+  if (!cleanToken || !/^[a-f0-9]{64}$/i.test(cleanToken)) {
+    errors.push("This reset link is invalid or has expired.");
+  }
+  if (!cleanPassword) {
+    errors.push("Password is required.");
+  } else if (!PASSWORD_PATTERN.test(cleanPassword)) {
+    errors.push("Password must be at least 8 characters and include a letter and a number.");
+  }
+
+  return {
+    errors,
+    value: { token: cleanToken, password: cleanPassword },
+  };
+}
+
 function parseAnswer(raw) {
   if (raw === null || raw === undefined || raw === "") {
     return { error: "An answer is required." };
@@ -72,6 +100,8 @@ function parseAnswer(raw) {
 module.exports = {
   validateRegistration,
   validateLogin,
+  validateEmailOnly,
+  validatePasswordReset,
   parseAnswer,
   normalizeEmail,
 };

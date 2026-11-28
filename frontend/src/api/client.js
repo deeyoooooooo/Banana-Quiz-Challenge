@@ -58,6 +58,20 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+  forgotPassword(email, csrfToken) {
+    return request("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "x-csrf-token": csrfToken },
+      body: JSON.stringify({ email }),
+    });
+  },
+  resetPassword(payload, csrfToken) {
+    return request("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "x-csrf-token": csrfToken },
+      body: JSON.stringify(payload),
+    });
+  },
   logout(csrfToken) {
     return request("/api/auth/logout", {
       method: "POST",
