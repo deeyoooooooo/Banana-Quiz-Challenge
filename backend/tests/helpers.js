@@ -22,6 +22,7 @@ function createTestApp(bananaService, options = {}) {
       }),
     },
     now: options.now,
+    deliverReset: options.deliverReset,
   });
   return { app, db };
 }
