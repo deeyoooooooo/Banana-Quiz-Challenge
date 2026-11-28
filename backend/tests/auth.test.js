@@ -93,6 +93,16 @@ test("blocks unauthorized access to protected routes", async () => {
   assert.equal(results.status, 401);
 });
 
+test("rejects cookie-authenticated posts that omit the CSRF token", async () => {
+  const { agent } = await csrfAgent(app);
+  const response = await agent.post("/api/auth/login").send({
+    email: "ada@example.com",
+    password: "Secure123",
+  });
+  assert.equal(response.status, 403);
+  assert.match(response.body.error, /csrf/i);
+});
+
 test("logout destroys the session", async () => {
   const { agent, csrfToken } = await csrfAgent(app);
   await withCsrf(agent, csrfToken).post("/api/auth/register").send({
